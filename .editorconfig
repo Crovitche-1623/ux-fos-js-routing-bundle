@@ -1,0 +1,5 @@
+[*.{yaml,yml}]
+trim_trailing_whitespace = true
+
+[.github/**/*.yml]
+indent_size = 2

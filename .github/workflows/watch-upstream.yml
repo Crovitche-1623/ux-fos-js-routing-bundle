@@ -1,0 +1,69 @@
+name: Watch upstream releases
+
+on:
+  # Uncomment when the process is working
+  # schedule:
+  #     - cron: 0 0 * * *
+  workflow_dispatch:
+
+permissions:
+  # to commit the state file
+  contents: write
+  # to create a notification issue
+  issues: write
+
+env:
+  UPSTREAM: FriendsOfSymfony/FOSJsRoutingBundle
+  STATE_FILE: .github/upstream-release.json
+
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Get latest upstream release
+        id: upstream
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${UPSTREAM}/releases/latest"
+          json=$(curl -sSL "$api")
+          tag=$(echo "$json" | jq -r .tag_name)
+          url=$(echo "$json" | jq -r .html_url)
+          if [ -z "${tag}" ] || [ "${tag}" = "null" ]; then
+            echo "No releases found for $UPSTREAM" >> "$GITHUB_STEP_SUMMARY"
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Read last seen tag
+        id: state
+        run: |
+          if [[ -f "$STATE_FILE" ]]; then
+            last=$(jq -r .last_tag "$STATE_FILE")
+          else
+            last=""
+          fi
+          echo "last=$last" >> "$GITHUB_OUTPUT"
+
+      - name: Decide if new
+        id: decide
+        run: |
+          if [[ "${{ steps.upstream.outputs.tag }}" != "${{ steps.state.outputs.last }}" && -n "${{ steps.upstream.outputs.tag }}" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Save state (commit last tag)
+        if: steps.decide.outputs.changed == 'true'
+        run: |
+          mkdir -p "$(dirname "$STATE_FILE")"
+          echo "{\"last_tag\":\"${{ steps.upstream.outputs.tag }}\"}" > "$STATE_FILE"
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$STATE_FILE"
+          git commit -m "chore: track upstream release ${{ steps.upstream.outputs.tag }}"
+          git push
