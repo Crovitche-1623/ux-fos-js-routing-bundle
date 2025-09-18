@@ -80,7 +80,7 @@ jobs:
           fi
 
           # Update version in package.json:
-          npm version --no-git-tag-version "${TAG}"
+          npm version --no-git-tag-version "${TAG}" || true
 
           mkdir -p "$(dirname "$STATE_FILE")"
           echo "{\"last_tag\":\"${TAG}\"}" > "$STATE_FILE"
