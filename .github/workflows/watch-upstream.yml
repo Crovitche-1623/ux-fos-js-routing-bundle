@@ -71,7 +71,7 @@ jobs:
 
           fetched="false"
 
-          if curl -fsSL "$location" -o "$TARGET_PATH"; then
+          if curl -fsSL "$url" -o "$TARGET_PATH"; then
             fetched="true"
           fi
 
