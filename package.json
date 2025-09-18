@@ -1,0 +1,15 @@
+{
+  "name": "fos-js-routing-bundle",
+  "version": "3.5.2",
+  "description": "Lightweight package exposing only the minified router from FOSJsRoutingBundle",
+  "main": "router.min.js",
+  "keywords": [
+    "router",
+    "symfony"
+  ],
+  "files": [
+    "router.min.js"
+  ],
+  "license": "MIT",
+  "author": "Thibault Gattolliat <contact@thibaultg.info>"
+}

@@ -1,6 +1,6 @@
 name: Watch upstream releases
 
-on:
+'on':
   # Uncomment when the process is working
   # schedule:
   #     - cron: 0 0 * * *
@@ -15,6 +15,7 @@ permissions:
 env:
   UPSTREAM: FriendsOfSymfony/FOSJsRoutingBundle
   STATE_FILE: .github/upstream-release.json
+  TARGET_PATH: router.min.js
 
 jobs:
   check:
@@ -28,8 +29,8 @@ jobs:
           set -euo pipefail
           api="https://api.github.com/repos/${UPSTREAM}/releases/latest"
           json=$(curl -sSL "$api")
-          tag=$(echo "$json" | jq -r .tag_name)
-          url=$(echo "$json" | jq -r .html_url)
+          tag=$(jq -r .tag_name <<< "$json")
+          url=$(jq -r .html_url <<< "$json")
           if [ -z "${tag}" ] || [ "${tag}" = "null" ]; then
             echo "No releases found for $UPSTREAM" >> "$GITHUB_STEP_SUMMARY"
             echo "tag=" >> "$GITHUB_OUTPUT"
@@ -57,13 +58,41 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Save state (commit last tag)
+      - name: Fetch router from upstream tag and commit
         if: steps.decide.outputs.changed == 'true'
+        env:
+          TAG: ${{ steps.upstream.outputs.tag }}
         run: |
+          set -euo pipefail
+
+          location="Resources/public/js/router.min.js"
+
+          url="https://raw.githubusercontent.com/${UPSTREAM}/${TAG}/${location}"
+
+          fetched="false"
+
+          if curl -fsSL "$location" -o "$TARGET_PATH"; then
+            fetched="true"
+          fi
+
+          if [ "$fetched" != "true" ]; then
+            echo "::error::Unable to fetch the router.min.js from upstream tag ${TAG}."
+            exit 1
+          fi
+
           mkdir -p "$(dirname "$STATE_FILE")"
           echo "{\"last_tag\":\"${{ steps.upstream.outputs.tag }}\"}" > "$STATE_FILE"
+
           git config --global user.name  "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$STATE_FILE"
+
+          git add "$STATE_FILE" "$STATE_FILE"
           git commit -m "chore: track upstream release ${{ steps.upstream.outputs.tag }}"
           git push
+
+          echo "✅ Synced **router.min.js** from \`${UPSTREAM}\` at tag \`${TAG}\`." >> "$GITHUB_STEP_SUMMARY"
+          echo "Saved to: \`${TARGET_PATH}\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summary (no change)
+        if: steps.decide.outputs.changed != 'true'
+        run: echo "No new release (still ${{ steps.state.outputs.last }})" >> $GITHUB_STEP_SUMMARY
