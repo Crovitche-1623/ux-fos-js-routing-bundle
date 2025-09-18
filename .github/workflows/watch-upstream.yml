@@ -27,8 +27,8 @@ jobs:
           set -euo pipefail
           api="https://api.github.com/repos/${UPSTREAM}/releases/latest"
           json=$(curl -sSL "$api")
-          tag=$(jq -r .tag_name <<< "$json")
-          url=$(jq -r .html_url <<< "$json")
+          tag=$(echo "$json" | jq -r .tag_name)
+          url=$(echo "$json" | jq -r .html_url)
           if [ -z "${tag}" ] || [ "${tag}" = "null" ]; then
             echo "No releases found for $UPSTREAM" >> "$GITHUB_STEP_SUMMARY"
             echo "tag=" >> "$GITHUB_OUTPUT"
