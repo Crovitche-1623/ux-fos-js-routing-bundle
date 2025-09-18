@@ -111,6 +111,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
+          npm whoami
           npm publish --access public
           echo "📦 Published to NPM." >> $GITHUB_STEP_SUMMARY
 
