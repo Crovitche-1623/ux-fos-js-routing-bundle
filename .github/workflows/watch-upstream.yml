@@ -9,8 +9,6 @@ name: Watch upstream releases
 permissions:
   # to commit the state file
   contents: write
-  # to create a notification issue
-  issues: write
 
 env:
   UPSTREAM: FriendsOfSymfony/FOSJsRoutingBundle
@@ -58,8 +56,9 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Fetch router from upstream tag and commit
+      - name: Fetch router from upstream tag and commit changes
         if: steps.decide.outputs.changed == 'true'
+        id: sync
         env:
           TAG: ${{ steps.upstream.outputs.tag }}
         run: |
@@ -80,18 +79,40 @@ jobs:
             exit 1
           fi
 
+          # Update version in package.json:
+          npm version --no-git-tag-version "${TAG}"
+
           mkdir -p "$(dirname "$STATE_FILE")"
-          echo "{\"last_tag\":\"${{ steps.upstream.outputs.tag }}\"}" > "$STATE_FILE"
+          echo "{\"last_tag\":\"${TAG}\"}" > "$STATE_FILE"
 
           git config --global user.name  "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add "$STATE_FILE" "$TARGET_PATH"
-          git commit -m "chore: track upstream release ${{ steps.upstream.outputs.tag }}"
+          git add "$STATE_FILE" "$TARGET_PATH" package.json
+          git commit -m "chore: track upstream release ${TAG}"
+          git tag "${TAG}"
           git push
+          git push --tags
 
           echo "✅ Synced **router.min.js** from \`${UPSTREAM}\` at tag \`${TAG}\`." >> "$GITHUB_STEP_SUMMARY"
           echo "Saved to: \`${TARGET_PATH}\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Setup Node (for NPM publish)
+        if: steps.decide.outputs.changed == 'true' && steps.sync.outcome == 'success'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+          always-auth: true
+
+      - name: Publish to NPM
+        if: steps.decide.outputs.changed == 'true' && steps.sync.outcome == 'success'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          npm publish --access public
+          echo "📦 Published to NPM." >> $GITHUB_STEP_SUMMARY
 
       - name: Summary (no change)
         if: steps.decide.outputs.changed != 'true'
